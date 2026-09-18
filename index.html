@@ -1,0 +1,1229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kisan Setu - Smart Agri Platform</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        kisan: {
+                            50: '#f0fdf4',
+                            100: '#dcfce7',
+                            500: '#22c55e',
+                            600: '#16a34a',
+                            700: '#15803d',
+                            800: '#166534',
+                            900: '#14532d',
+                        },
+                        amberGold: '#f59e0b',
+                        earthDark: '#1e293b'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Leaflet.js Maps for Delivery Tracking -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(229, 231, 235, 0.8);
+        }
+        .dark .glass-panel {
+            background: rgba(30, 41, 59, 0.85);
+            border: 1px solid rgba(51, 65, 85, 0.8);
+        }
+        .animate-pulse-slow {
+            animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+        #map, #tracking-map { height: 220px; width: 100%; border-radius: 0.75rem; }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 antialiased min-h-screen flex flex-col custom-scrollbar transition-colors duration-200">
+
+    <!-- Toast Notification Box -->
+    <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-3 pointer-events-none"></div>
+
+    <!-- Global Header / Navigation Bar -->
+    <header id="main-nav" class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-40 shadow-sm transition-all">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo -->
+                <div class="flex items-center space-x-3 cursor-pointer" onclick="navigateTo('gateway')">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-green-500 flex items-center justify-center text-white shadow-md shadow-green-200 dark:shadow-none">
+                        <i class="fa-solid font-bold fa-wheat-awn text-xl"></i>
+                    </div>
+                    <div>
+                        <span class="text-xl font-extrabold bg-gradient-to-r from-emerald-700 to-green-600 bg-clip-text text-transparent dark:from-emerald-400 dark:to-green-300">Kisan Setu</span>
+                        <span class="hidden sm:inline-block text-xs font-semibold px-2 py-0.5 ml-2 bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 rounded-full">किसान सेतु</span>
+                    </div>
+                </div>
+
+                <!-- Navigation Tabs -->
+                <nav id="nav-links" class="hidden md:flex space-x-2 items-center">
+                    <button onclick="navigateTo('gateway')" class="nav-btn px-3 py-2 rounded-lg text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                        <i class="fa-solid fa-house mr-1.5 text-slate-400"></i> Portal Gateway
+                    </button>
+                    <button id="nav-btn-farmer" onclick="navigateTo('farmer-dashboard')" class="nav-btn px-3 py-2 rounded-lg text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                        <i class="fa-solid fa-tractor mr-1.5 text-emerald-600"></i> Farmer Dashboard
+                    </button>
+                    <button id="nav-btn-market" onclick="navigateTo('marketplace')" class="nav-btn px-3 py-2 rounded-lg text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                        <i class="fa-solid fa-store mr-1.5 text-amber-500"></i> Marketplace
+                    </button>
+                    
+                    <!-- Kissan AI Button -->
+                    <button onclick="openKissanAIModal()" class="px-3 py-2 rounded-lg text-xs sm:text-sm font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-sm flex items-center gap-1.5 transition-all">
+                        <i class="fa-solid fa-robot"></i> Kissan AI
+                    </button>
+                </nav>
+
+                <!-- Settings / Translation / Dark Mode -->
+                <div class="flex items-center space-x-2 sm:space-x-3">
+                    <div class="relative">
+                        <select id="lang-selector" onchange="translatePage(this.value)" class="bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-xs rounded-lg px-2 py-1.5 text-slate-700 dark:text-slate-200 font-medium focus:ring-2 focus:ring-emerald-500">
+                            <option value="en">English</option>
+                            <option value="hi">हिन्दी (Hindi)</option>
+                            <option value="bn">বাংলা (Bengali)</option>
+                            <option value="pa">ਪੰਜਾਬੀ (Punjabi)</option>
+                            <option value="mr">मराठी (Marathi)</option>
+                            <option value="gu">ગુજરાતી (Gujarati)</option>
+                            <option value="ta">தமிழ் (Tamil)</option>
+                            <option value="te">తెలుగు (Telugu)</option>
+                            <option value="kn">ಕನ್ನಡ (Kannada)</option>
+                            <option value="ml">മലയാളം (Malayalam)</option>
+                            <option value="or">ଓଡ଼ିଆ (Odia)</option>
+                            <option value="as">অসমীয়া (Assamese)</option>
+                        </select>
+                    </div>
+
+                    <button onclick="toggleDarkMode()" class="p-2 text-slate-500 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" title="Toggle Theme">
+                        <i id="theme-icon" class="fa-solid fa-moon text-lg"></i>
+                    </button>
+
+                    <div id="user-status-badge" class="hidden sm:flex items-center space-x-2 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 px-3 py-1.5 rounded-full text-xs font-medium border border-emerald-200 dark:border-emerald-800">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                        <span id="user-role-text">Arun Kumar • Katpadi (Verified)</span>
+                    </div>
+                    <button onclick="navigateTo('gateway')" class="p-2 text-slate-500 dark:text-slate-400 hover:text-emerald-700 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800" title="Switch Portal">
+                        <i class="fa-solid fa-right-from-bracket text-lg"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- VIEW 1: INITIAL GATEWAY PAGE -->
+    <section id="view-gateway" class="flex-1 flex flex-col justify-center items-center px-4 py-12 bg-gradient-to-b from-emerald-900 via-slate-900 to-slate-900 text-white relative overflow-hidden">
+        <div class="absolute inset-0 opacity-10 bg-[radial-gradient(#22c55e_1px,transparent_1px)] [background-size:24px_24px]"></div>
+        
+        <div class="max-w-4xl w-full mx-auto text-center relative z-10 mb-10">
+            <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold mb-6 uppercase tracking-wider backdrop-blur-md">
+                <i class="fa-solid fa-circle-check"></i> India's Direct Agri-Trading & Pooling Network
+            </div>
+            <h1 class="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight text-white mb-4">
+                Connecting Farmers Directly to <span class="bg-gradient-to-r from-emerald-400 via-green-300 to-amber-300 bg-clip-text text-transparent">Better Markets & Auctions</span>
+            </h1>
+            <p class="text-slate-300 text-base sm:text-lg max-w-2xl mx-auto">
+                Welcome to Kisan Setu. Select your destination below to log in to your specialized Farmer Management Hub or jump directly into the Unified Marketplace.
+            </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl w-full relative z-10">
+            <div class="glass-panel p-8 rounded-2xl border border-emerald-500/30 shadow-2xl hover:border-emerald-400 transition-all transform hover:-translate-y-1 group bg-slate-800/80 text-white">
+                <div class="w-14 h-14 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center mb-6 text-2xl group-hover:bg-emerald-500 group-hover:text-white transition-all">
+                    <i class="fa-solid fa-tractor"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-white mb-2">Farmer Dashboard</h2>
+                <p class="text-slate-300 text-sm mb-6 leading-relaxed">
+                    Access your personalized crop yield statistics, AI weather advisor, government schemes, and financial management tools.
+                </p>
+                <div class="space-y-3 mb-8">
+                    <div class="flex items-center text-xs text-slate-300">
+                        <i class="fa-solid fa-check text-emerald-400 mr-2"></i> Real-time Mandi price monitoring
+                    </div>
+                    <div class="flex items-center text-xs text-slate-300">
+                        <i class="fa-solid fa-check text-emerald-400 mr-2"></i> AI-powered Soil & Crop Diagnostics
+                    </div>
+                    <div class="flex items-center text-xs text-slate-300">
+                        <i class="fa-solid fa-check text-emerald-400 mr-2"></i> Direct link to Marketplace for listing yield
+                    </div>
+                </div>
+                <button onclick="openLoginModal()" class="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-emerald-600 to-green-500 hover:from-emerald-500 hover:to-green-400 text-white font-semibold text-center shadow-lg shadow-emerald-900/50 flex items-center justify-center space-x-2 transition-all">
+                    <span>Log In to Farmer Hub</span>
+                    <i class="fa-solid fa-arrow-right"></i>
+                </button>
+            </div>
+
+            <div class="glass-panel p-8 rounded-2xl border border-amber-500/30 shadow-2xl hover:border-amber-400 transition-all transform hover:-translate-y-1 group bg-slate-800/80 text-white">
+                <div class="w-14 h-14 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center mb-6 text-2xl group-hover:bg-amber-500 group-hover:text-white transition-all">
+                    <i class="fa-solid fa-store"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-white mb-2">Unified Marketplace</h2>
+                <p class="text-slate-300 text-sm mb-6 leading-relaxed">
+                    Explore direct produce selling, join collective <strong>FarmPools</strong> for bulk deals, or participate in <strong>Live Auctions</strong>.
+                </p>
+                <div class="space-y-3 mb-8">
+                    <div class="flex items-center text-xs text-slate-300">
+                        <i class="fa-solid fa-check text-amber-400 mr-2"></i> <strong>FarmPool:</strong> Aggregate crops & bulk buyers
+                    </div>
+                    <div class="flex items-center text-xs text-slate-300">
+                        <i class="fa-solid fa-check text-amber-400 mr-2"></i> <strong>Live Auctions:</strong> Competitive real-time bidding
+                    </div>
+                    <div class="flex items-center text-xs text-slate-300">
+                        <i class="fa-solid fa-check text-amber-400 mr-2"></i> Direct negotiation & escrow payment security
+                    </div>
+                </div>
+                <button onclick="navigateTo('marketplace')" class="w-full py-3.5 px-6 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-semibold text-center shadow-lg shadow-amber-900/50 flex items-center justify-center space-x-2 transition-all">
+                    <span>Enter Marketplace & Pools</span>
+                    <i class="fa-solid fa-store"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="mt-12 grid grid-cols-2 sm:grid-cols-4 gap-6 max-w-4xl w-full text-center border-t border-slate-800 pt-8 text-slate-400 text-xs">
+            <div>
+                <span class="block text-xl font-bold text-white">12,400+</span>
+                <span>Active Farmers</span>
+            </div>
+            <div>
+                <span class="block text-xl font-bold text-white">₹4.8 Cr+</span>
+                <span>Monthly Auction Vol</span>
+            </div>
+            <div>
+                <span class="block text-xl font-bold text-white">350+</span>
+                <span>Active FarmPools</span>
+            </div>
+            <div>
+                <span class="block text-xl font-bold text-white">0%</span>
+                <span>Middleman Exploitation</span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Farmer Login Modal -->
+    <div id="modal-login" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <i class="fa-solid fa-id-card text-emerald-600"></i> Farmer Login
+                </h3>
+                <button onclick="closeLoginModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mb-6">Enter your Registered Mobile Number or Kisan Credit Card (KCC) ID to log in.</p>
+            <form onsubmit="handleFarmerLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Mobile Number / KCC ID</label>
+                    <input type="text" value="+91 98765 43210" required class="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-emerald-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Select Region / District</label>
+                    <select class="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-emerald-500">
+                        <option>Tamil Nadu - Vellore Hub</option>
+                        <option>Tamil Nadu - Tiruvannamalai</option>
+                        <option>Tamil Nadu - Krishnagiri Belt</option>
+                        <option>Karnataka - Kolar</option>
+                    </select>
+                </div>
+                <button type="submit" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm shadow-md transition-all">
+                    Verify & Enter Dashboard
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- VIEW 2: FARMER DASHBOARD -->
+    <section id="view-farmer-dashboard" class="hidden flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        <div class="bg-gradient-to-r from-emerald-800 to-green-700 rounded-2xl p-6 sm:p-8 text-white shadow-lg flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+            <div>
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/30 text-emerald-200 text-xs font-medium mb-3">
+                    <i class="fa-solid fa-location-dot"></i> Katpadi, Vellore Mandi Hub
+                </div>
+                <h1 class="text-2xl sm:text-3xl font-extrabold">Welcome back, Arun Kumar 👋</h1>
+                <p class="text-emerald-100 text-sm mt-1">Your Tomato harvests are active. Integrated with Marketplace auctions & pools.</p>
+            </div>
+            <div class="flex flex-wrap gap-3">
+                <button onclick="openHarvestModal()" class="bg-emerald-500 hover:bg-emerald-600 text-white font-semibold px-4 py-2.5 rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center gap-2">
+                    <i class="fa-solid fa-plus-circle"></i> Add Harvest For Sale
+                </button>
+                <button onclick="navigateTo('marketplace', 'farmpool')" class="bg-amber-500 hover:bg-amber-600 text-slate-900 font-semibold px-4 py-2.5 rounded-xl text-xs sm:text-sm shadow-md transition-all flex items-center gap-2">
+                    <i class="fa-solid fa-people-group"></i> My FarmPools
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
+                <div class="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-sack-dollar"></i>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Estimated Seasonal Revenue</p>
+                    <p class="text-xl font-bold text-slate-900 dark:text-white">₹ 4,85,000</p>
+                    <span class="text-xs text-emerald-600 dark:text-emerald-400 font-semibold"><i class="fa-solid fa-arrow-up"></i> +12% vs last year</span>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
+                <div class="w-12 h-12 rounded-xl bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400 flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-people-roof"></i>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Active FarmPool Listings</p>
+                    <p class="text-xl font-bold text-slate-900 dark:text-white">3 Active Pools</p>
+                    <span class="text-xs text-amber-600 dark:text-amber-400 font-semibold">6.4 Tons Aggregated</span>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
+                <div class="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-400 flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-cloud-sun-rain"></i>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Weather & Irrigation</p>
+                    <p class="text-xl font-bold text-slate-900 dark:text-white">28°C Sunny</p>
+                    <span class="text-xs text-blue-600 dark:text-blue-400 font-semibold">Clear harvest conditions</span>
+                </div>
+            </div>
+
+            <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex items-center gap-4">
+                <div class="w-12 h-12 rounded-xl bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-400 flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-gavel"></i>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 font-medium">Live Bids Received</p>
+                    <p class="text-xl font-bold text-slate-900 dark:text-white">8 Bids Active</p>
+                    <span class="text-xs text-purple-600 dark:text-purple-400 font-semibold">Highest: ₹28/kg</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Mandi Price Trend Chart -->
+                <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-slate-800 dark:text-slate-100 text-base flex items-center gap-2">
+                            <i class="fa-solid fa-chart-line text-emerald-600"></i> Regional Mandi Price Index (Vellore & Krishnagiri)
+                        </h3>
+                        <span class="text-xs text-slate-500 dark:text-slate-400">Modal Daily Price</span>
+                    </div>
+                    <div class="h-64">
+                        <canvas id="mandiChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-slate-800 dark:text-slate-100 text-base flex items-center gap-2">
+                            <i class="fa-solid fa-boxes-packing text-emerald-600"></i> My Registered Harvests
+                        </h3>
+                        <button onclick="openHarvestModal()" class="text-xs text-emerald-700 dark:text-emerald-400 font-semibold hover:underline">+ Add Quantity</button>
+                    </div>
+                    <div id="farmer-registered-harvests" class="space-y-4"></div>
+                </div>
+            </div>
+
+            <div class="space-y-6">
+                <div class="bg-gradient-to-br from-slate-900 to-slate-800 p-6 rounded-2xl text-white shadow-md">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-lg">
+                            <i class="fa-solid fa-robot"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-base">Kisan AI Assistant</h3>
+                            <p class="text-xs text-slate-400">Smart Crop & Market Strategy</p>
+                        </div>
+                    </div>
+                    <div class="bg-slate-800/80 rounded-xl p-4 text-xs text-slate-300 space-y-2 border border-slate-700">
+                        <p class="font-semibold text-emerald-400"><i class="fa-solid fa-lightbulb"></i> Market Tip:</p>
+                        <p>Tomato modal rates in Vellore have climbed from ₹24 to ₹27/kg this week. South India Foods placed a ₹27/kg offer for 1,500 kg.</p>
+                    </div>
+                    <button onclick="openKissanAIModal()" class="w-full mt-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-comments"></i> Consult Kissan AI
+                    </button>
+                </div>
+
+                <div class="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 p-6 rounded-2xl">
+                    <h4 class="font-bold text-amber-900 dark:text-amber-200 text-base mb-2">Want to sell your harvest fast?</h4>
+                    <p class="text-xs text-amber-800 dark:text-amber-300 mb-4">List directly into the Marketplace, join an active bulk FarmPool, or launch a live timer auction.</p>
+                    <button onclick="navigateTo('marketplace')" class="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded-xl text-xs shadow">
+                        Go to Marketplace Hub
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Farmer Harvest Input Modal -->
+    <div id="modal-add-harvest" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <i class="fa-solid fa-wheat-field text-emerald-600"></i> Add Harvested Crops
+                </h3>
+                <button onclick="closeModal('modal-add-harvest')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            <form onsubmit="handleAddHarvestSubmit(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Crop Name</label>
+                    <input id="harvest-crop-name" type="text" placeholder="e.g. Hybrid Tomato, Fresh Red Onion" required class="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Harvested Quantity Available (kg)</label>
+                    <input id="harvest-quantity" type="number" placeholder="e.g. 1500" required class="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Price per kg (₹)</label>
+                    <input id="harvest-price" type="number" placeholder="e.g. 26" required class="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Location / Mandi</label>
+                    <input id="harvest-location" type="text" placeholder="e.g. Vellore, Katpadi" required class="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+                </div>
+                <button type="submit" class="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-sm shadow-md">
+                    List Yield on Marketplace
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- VIEW 3: UNIFIED MARKETPLACE -->
+    <section id="view-marketplace" class="hidden flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        <div class="bg-slate-900 text-white rounded-2xl p-6 sm:p-8 relative overflow-hidden shadow-xl">
+            <div class="absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-emerald-600/30 to-transparent pointer-events-none"></div>
+            <div class="relative z-10 max-w-2xl">
+                <span class="px-3 py-1 bg-amber-500/20 text-amber-300 text-xs font-bold rounded-full border border-amber-500/30">Mandi Agri-Marketplace</span>
+                <h1 class="text-2xl sm:text-4xl font-extrabold mt-2">Direct Trading, Live Auctions & FarmPools</h1>
+                <p class="text-slate-300 text-xs sm:text-sm mt-2">
+                    Buy and sell agricultural produce directly, join group logistics & crop aggregation pools, or participate in real-time competitive bidding.
+                </p>
+            </div>
+        </div>
+
+        <!-- Marketplace Sub-Navigation Tabs -->
+        <div class="flex flex-wrap items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3 gap-4">
+            <div class="flex space-x-2 bg-slate-200/70 dark:bg-slate-800 p-1 rounded-xl">
+                <button id="tab-btn-direct" onclick="switchMarketplaceTab('direct')" class="tab-market-btn px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-900 transition-all flex items-center gap-2">
+                    <i class="fa-solid fa-wheat-field text-emerald-600"></i> Direct Crops & Spot Market
+                </button>
+                <button id="tab-btn-auctions" onclick="switchMarketplaceTab('auctions')" class="tab-market-btn px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-900 transition-all flex items-center gap-2">
+                    <i class="fa-solid fa-gavel text-amber-500"></i> Live Auctions <span class="bg-red-500 text-white text-[10px] px-1.5 py-0.2 rounded-full animate-pulse">LIVE</span>
+                </button>
+                <button id="tab-btn-farmpool" onclick="switchMarketplaceTab('farmpool')" class="tab-market-btn px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300 hover:text-slate-900 transition-all flex items-center gap-2">
+                    <i class="fa-solid fa-people-group text-blue-600"></i> FarmPool Aggregation
+                </button>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <input id="market-search" type="text" oninput="renderDirectCrops()" placeholder="Search crop, location..." class="px-3 py-1.5 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-500 w-48 sm:w-64">
+                <button onclick="showToast('Filter options updated', 'info')" class="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold">
+                    <i class="fa-solid fa-filter"></i> Filters
+                </button>
+            </div>
+        </div>
+
+        <!-- SUB-TAB 1: DIRECT CROPS MARKETPLACE -->
+        <div id="market-sec-direct" class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="direct-crops-grid"></div>
+        </div>
+
+        <!-- SUB-TAB 2: LIVE AUCTIONS -->
+        <div id="market-sec-auctions" class="hidden space-y-6">
+            <div class="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-200 dark:border-amber-800/50 p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h3 class="font-bold text-amber-900 dark:text-amber-300 text-base flex items-center gap-2">
+                        <i class="fa-solid fa-gavel text-amber-600"></i> Active Live Competitive Bidding
+                    </h3>
+                    <p class="text-xs text-amber-800 dark:text-amber-400">Bids update in real-time. Highest verified bid wins harvest contract.</p>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="auctions-grid"></div>
+        </div>
+
+        <!-- SUB-TAB 3: FARMPOOL AGGREGATION -->
+        <div id="market-sec-farmpool" class="hidden space-y-6">
+            <div class="bg-gradient-to-r from-blue-900 to-slate-900 text-white p-6 rounded-2xl shadow-md flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <span class="px-2.5 py-0.5 bg-blue-500/20 text-blue-300 text-xs font-bold rounded-full border border-blue-400/30">Collective Bargaining & Logistics</span>
+                    <h3 class="text-xl font-bold mt-1">FarmPool: Pool Harvests for Bigger Buyer Contracts</h3>
+                    <p class="text-xs text-slate-300 mt-1 max-w-2xl">
+                        Small farmers pool their yields together to satisfy large corporate quantity orders and split transport & cold storage costs.
+                    </p>
+                </div>
+                <button onclick="openCreatePoolModal()" class="px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded-xl text-xs shadow-md whitespace-nowrap">
+                    + Start New FarmPool Group
+                </button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="farmpools-grid"></div>
+        </div>
+    </section>
+
+    <!-- Address Selection & Purchase Checkout Modal with GPS Address Picker -->
+    <div id="modal-checkout" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[90vh] overflow-y-auto custom-scrollbar">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <i class="fa-solid fa-truck-fast text-emerald-600"></i> Delivery Address & Checkout
+                </h3>
+                <button onclick="closeModal('modal-checkout')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <div id="checkout-crop-summary" class="bg-emerald-50 dark:bg-emerald-950/40 p-4 rounded-xl border border-emerald-200 dark:border-emerald-800/50 mb-4 text-xs"></div>
+
+            <form onsubmit="handleCheckoutSubmit(event)" class="space-y-4">
+                <div class="space-y-2">
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300">Set Delivery Address (Before Payment)</label>
+                    <input id="checkout-address" type="text" placeholder="House/Warehouse No, Street, City, Pincode" required class="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+                    
+                    <button type="button" onclick="detectGPSLocation()" class="w-full py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-location-crosshairs text-emerald-600"></i> Use GPS Current Location
+                    </button>
+                </div>
+
+                <div id="map" class="shadow-inner"></div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Select Payment Method</label>
+                    <select class="w-full px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+                        <option>Direct Agri Escrow Pay (Recommended)</option>
+                        <option>UPI / Bank Transfer</option>
+                        <option>Pay on Delivery</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-bold rounded-xl text-sm shadow-lg">
+                    Confirm Order & Proceed to Live Delivery Tracking
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Post Checkout Map & Live Delivery Tracking Modal -->
+    <div id="modal-tracking" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <i class="fa-solid fa-route text-amber-500"></i> Live Delivery Tracking
+                </h3>
+                <button onclick="closeModal('modal-tracking')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <div class="bg-amber-50 dark:bg-amber-950/40 p-3 rounded-xl border border-amber-200 dark:border-amber-800/50 mb-4 text-xs space-y-1">
+                <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400">Order Status:</span> <span class="font-bold text-emerald-600">In Transit (Logistics Vehicle Assigned)</span></div>
+                <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400">Destination:</span> <span id="tracking-dest-text" class="font-semibold text-slate-800 dark:text-slate-200">-</span></div>
+                <div class="flex justify-between"><span class="text-slate-500 dark:text-slate-400">Est. Arrival:</span> <span class="font-bold text-slate-800 dark:text-slate-200">2 Hours 15 Mins</span></div>
+            </div>
+
+            <div id="tracking-map" class="mb-4"></div>
+
+            <button onclick="closeModal('modal-tracking')" class="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white font-semibold rounded-xl text-xs">
+                Close Tracking Dashboard
+            </button>
+        </div>
+    </div>
+
+    <!-- Create FarmPool Modal -->
+    <div id="modal-farmpool" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-slate-900 rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <i class="fa-solid fa-people-group text-blue-600"></i> Initiate New FarmPool
+                </h3>
+                <button onclick="closeModal('modal-farmpool')" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            <form onsubmit="handleCreatePoolSubmit(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Pool Name / Objective</label>
+                    <input id="pool-name" type="text" placeholder="e.g. Vellore Tomato Bulk Supply" required class="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Crop / Commodity</label>
+                    <select id="pool-crop" class="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+                        <option>Tomato (Hybrid/Local)</option>
+                        <option>Onion (Red)</option>
+                        <option>Rice (Ponni)</option>
+                        <option>Banana (Robusta)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Target Quantity Quota (Tons)</label>
+                    <input id="pool-target" type="number" placeholder="5" required class="w-full px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm">
+                </div>
+                <button type="submit" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl text-sm shadow-md">
+                    Launch Pool in Marketplace
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Kissan AI Advisor Modal -->
+    <div id="modal-kissan-ai" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 text-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-800 flex flex-col h-[500px]">
+            <div class="flex justify-between items-center mb-4 pb-3 border-b border-slate-800">
+                <h3 class="text-lg font-bold flex items-center gap-2">
+                    <i class="fa-solid fa-robot text-emerald-400"></i> Kissan AI Assistant
+                </h3>
+                <button onclick="closeModal('modal-kissan-ai')" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            
+            <div id="ai-chat-messages" class="flex-1 overflow-y-auto space-y-3 custom-scrollbar text-xs pr-1">
+                <div class="bg-slate-800 p-3 rounded-xl border border-slate-700 text-slate-200">
+                    👋 Namaste Arun Kumar! I am your <strong>Kissan AI Assistant</strong>. Ask me about buyer offers, mandi price movements, or transporter rates.
+                </div>
+            </div>
+
+            <form onsubmit="handleAISubmit(event)" class="mt-4 flex gap-2">
+                <input id="ai-input" type="text" placeholder="Ask AI advisor..." class="flex-1 px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl text-xs">
+                    Send
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-slate-900 text-slate-400 border-t border-slate-800 py-8 mt-auto">
+        <div class="max-w-7xl mx-auto px-4 text-center text-xs space-y-2">
+            <p class="font-semibold text-slate-300">Kisan Setu Platform © • Connecting Indian Agriculture Directly</p>
+            <p>Direct Produce • Live Auctions • FarmPool Aggregation</p>
+        </div>
+    </footer>
+
+    <!-- JS BACKEND ENGINE WITH INTEGRATED CSV DATA -->
+    <script>
+        const farmersDB = [
+            { farmer_id: "F001", name: "Arun Kumar", state: "Tamil Nadu", district: "Vellore", village: "Katpadi", language: "Tamil", verified: true },
+            { farmer_id: "F002", name: "Meena Devi", state: "Tamil Nadu", district: "Tiruvannamalai", village: "Polur", language: "Tamil", verified: true },
+            { farmer_id: "F003", name: "Ravi Shankar", state: "Tamil Nadu", district: "Krishnagiri", village: "Hosur", language: "Tamil", verified: true },
+            { farmer_id: "F004", name: "Lakshmi", state: "Tamil Nadu", district: "Salem", village: "Attur", language: "Tamil", verified: true },
+            { farmer_id: "F005", name: "Suresh", state: "Tamil Nadu", district: "Dharmapuri", village: "Pennagaram", language: "Tamil", verified: false },
+            { farmer_id: "F006", name: "Priya", state: "Tamil Nadu", district: "Thanjavur", village: "Kumbakonam", language: "Tamil", verified: true },
+            { farmer_id: "F007", name: "Mohan", state: "Andhra Pradesh", district: "Chittoor", village: "Madanapalle", language: "Telugu", verified: true },
+            { farmer_id: "F008", name: "Kavitha", state: "Karnataka", district: "Kolar", village: "Mulbagal", language: "Kannada", verified: true }
+        ];
+
+        const cropImages = {
+            'Tomato': 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=600&q=80',
+            'Onion': 'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?auto=format&fit=crop&w=600&q=80',
+            'Banana': 'https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?auto=format&fit=crop&w=600&q=80',
+            'Rice': 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=600&q=80',
+            'Potato': 'https://images.unsplash.com/photo-1518977676601-b53f82aba655?auto=format&fit=crop&w=600&q=80'
+        };
+
+        const mandiDataset2026 = [
+            { id: "L001", farmerId: "F001", name: "Hybrid Tomato (Grade A)", crop: "Tomato", variety: "Hybrid", grade: "A", location: "Vellore, Katpadi", price: 25, quantity: 2000, seller: "Arun Kumar", harvestDate: "2026-09-22", status: "Active", image: cropImages['Tomato'], badge: "Grade A • Verified" },
+            { id: "L002", farmerId: "F002", name: "Local Tomato (Grade A)", crop: "Tomato", variety: "Local", grade: "A", location: "Tiruvannamalai, Polur", price: 24, quantity: 900, seller: "Meena Devi", harvestDate: "2026-09-24", status: "Active", image: cropImages['Tomato'], badge: "Grade A • Direct" },
+            { id: "L003", farmerId: "F003", name: "Red Onion (Grade A)", crop: "Onion", variety: "Red", grade: "A", location: "Krishnagiri, Hosur", price: 29, quantity: 1800, seller: "Ravi Shankar", harvestDate: "2026-09-28", status: "Active", image: cropImages['Onion'], badge: "Grade A • Verified" },
+            { id: "L004", farmerId: "F004", name: "Robusta Banana (Grade B)", crop: "Banana", variety: "Robusta", grade: "B", location: "Salem, Attur", price: 31, quantity: 1200, seller: "Lakshmi", harvestDate: "2026-09-25", status: "Active", image: cropImages['Banana'], badge: "Grade B • Sweet" },
+            { id: "L005", farmerId: "F005", name: "Hybrid Tomato (Grade B)", crop: "Tomato", variety: "Hybrid", grade: "B", location: "Dharmapuri, Pennagaram", price: 22, quantity: 700, seller: "Suresh", harvestDate: "2026-09-23", status: "Pending", image: cropImages['Tomato'], badge: "Grade B • Fresh" },
+            { id: "L006", farmerId: "F006", name: "Ponni Rice (Grade A)", crop: "Rice", variety: "Ponni", grade: "A", location: "Thanjavur, Kumbakonam", price: 39, quantity: 3000, seller: "Priya", harvestDate: "2026-10-10", status: "Active", image: cropImages['Rice'], badge: "Grade A • Premium" },
+            { id: "L007", farmerId: "F007", name: "Table Potato (Grade A)", crop: "Potato", variety: "Table", grade: "A", location: "Chittoor, Madanapalle", price: 27, quantity: 1000, seller: "Mohan", harvestDate: "2026-09-30", status: "Active", image: cropImages['Potato'], badge: "Grade A • Starch" },
+            { id: "L008", farmerId: "F008", name: "Red Onion (Grade A)", crop: "Onion", variety: "Red", grade: "A", location: "Kolar, Mulbagal", price: 30, quantity: 1400, seller: "Kavitha", harvestDate: "2026-09-27", status: "Active", image: cropImages['Onion'], badge: "Grade A • Verified" }
+        ];
+
+        let liveAuctions = [
+            {
+                id: "L001",
+                title: "Hybrid Tomato Lot (L001)",
+                location: "Vellore • Farmer: Arun Kumar",
+                quantity: "2,000 kg (Grade A)",
+                starting: 25,
+                currentBid: 28,
+                topBidder: "GreenLeaf Restaurants (Restaurant)",
+                history: [
+                    { bidder: "GreenLeaf Restaurants (Restaurant)", bid: 28 },
+                    { bidder: "South India Foods (Processor)", bid: 27 },
+                    { bidder: "FreshMart Retail (Retailer)", bid: 26 }
+                ]
+            },
+            {
+                id: "L002",
+                title: "Local Tomato Lot (L002)",
+                location: "Tiruvannamalai • Farmer: Meena Devi",
+                quantity: "900 kg (Grade A)",
+                starting: 24,
+                currentBid: 25,
+                topBidder: "FreshMart Retail (Retailer)",
+                history: [
+                    { bidder: "FreshMart Retail (Retailer)", bid: 25 }
+                ]
+            },
+            {
+                id: "L003",
+                title: "Red Onion Lot (L003)",
+                location: "Krishnagiri • Farmer: Ravi Shankar",
+                quantity: "1,800 kg (Grade A)",
+                starting: 29,
+                currentBid: 31,
+                topBidder: "City Fresh Wholesale (Wholesaler)",
+                history: [
+                    { bidder: "City Fresh Wholesale (Wholesaler)", bid: 31 },
+                    { bidder: "FarmFoods Processing (Processor)", bid: 30 }
+                ]
+            },
+            {
+                id: "L004",
+                title: "Robusta Banana Lot (L004)",
+                location: "Salem • Farmer: Lakshmi",
+                quantity: "1,200 kg (Grade B)",
+                starting: 31,
+                currentBid: 33,
+                topBidder: "Local Basket (Retailer)",
+                history: [
+                    { bidder: "Local Basket (Retailer)", bid: 33 }
+                ]
+            },
+            {
+                id: "L006",
+                title: "Ponni Rice Lot (L006)",
+                location: "Thanjavur • Farmer: Priya",
+                quantity: "3,000 kg (Grade A)",
+                starting: 39,
+                currentBid: 41,
+                topBidder: "Harvest Hub (Wholesaler)",
+                history: [
+                    { bidder: "Harvest Hub (Wholesaler)", bid: 41 }
+                ]
+            }
+        ];
+
+        let farmPools = [
+            {
+                id: "P001",
+                title: "Vellore Tomato Aggregation Pool",
+                crop: "Tomato (Grade A)",
+                current: 3200,
+                target: 3200,
+                farmers: 3,
+                savings: "35% Freight to Chennai via Sri Balaji Transport",
+                status: "100% Target Met"
+            },
+            {
+                id: "P002",
+                title: "Krishnagiri Onion Aggregation Pool",
+                crop: "Onion (Grade A)",
+                current: 1800,
+                target: 3200,
+                farmers: 1,
+                savings: "25% Combined Freight to Bengaluru via South Freight",
+                status: "56% Filled"
+            },
+            {
+                id: "P003",
+                title: "Kolar Onion Collective Pool",
+                crop: "Onion (Grade A)",
+                current: 1400,
+                target: 1400,
+                farmers: 1,
+                savings: "20% Bulk Logistics Savings via AgriMove",
+                status: "100% Target Met"
+            }
+        ];
+
+        const logisticsDirectory = [
+            { logistics_id: "LG001", transaction_id: "TR001", transporter: "Sri Balaji Transport", vehicle: "Truck (5T)", pickup: "Vellore", delivery: "Chennai", quantity: "1,500 kg", rate: "₹42/km", cost: "₹6,300", date: "2026-09-20", status: "Scheduled", pickupCoord: [12.9165, 79.1325], destCoord: [13.0827, 80.2707] },
+            { logistics_id: "LG002", transaction_id: "TR002", transporter: "South Freight", vehicle: "Mini Truck (2.5T)", pickup: "Krishnagiri", delivery: "Bengaluru", quantity: "1,800 kg", rate: "₹33/km", cost: "₹5,940", date: "2026-09-22", status: "Requested", pickupCoord: [12.5266, 78.2146], destCoord: [12.9716, 77.5946] },
+            { logistics_id: "LG003", transaction_id: "TR003", transporter: "Kaveri Cargo", vehicle: "Truck (6T)", pickup: "Salem", delivery: "Vellore", quantity: "1,200 kg", rate: "₹40/km", cost: "₹4,800", date: "2026-09-21", status: "Scheduled", pickupCoord: [11.6643, 78.1460], destCoord: [12.9165, 79.1325] },
+            { logistics_id: "LG004", transaction_id: "TR004", transporter: "Ravi Logistics", vehicle: "Mini Truck (2T)", pickup: "Tiruvannamalai", delivery: "Chennai", quantity: "900 kg", rate: "₹35/km", cost: "₹3,150", date: "2026-09-21", status: "Requested", pickupCoord: [12.2253, 79.0747], destCoord: [13.0827, 80.2707] }
+        ];
+
+        let customHarvests = JSON.parse(localStorage.getItem('kisan_harvests')) || [];
+        let currentView = 'gateway';
+        let currentMarketTab = 'direct';
+        let mandiChartInstance = null;
+        let pickerMap = null, pickerMarker = null;
+        let trackingMap = null, trackingMarker = null, routePolyline = null;
+        let selectedCropForCheckout = null;
+
+        window.onload = function() {
+            navigateTo('gateway');
+            initMandiChart();
+            renderDirectCrops();
+            renderFarmerHarvests();
+            renderFarmPools();
+            renderAuctions();
+        };
+
+        function navigateTo(viewId, marketTab = null) {
+            document.getElementById('view-gateway').classList.add('hidden');
+            document.getElementById('view-farmer-dashboard').classList.add('hidden');
+            document.getElementById('view-marketplace').classList.add('hidden');
+
+            if (viewId === 'gateway') {
+                document.getElementById('view-gateway').classList.remove('hidden');
+            } else if (viewId === 'farmer-dashboard') {
+                document.getElementById('view-farmer-dashboard').classList.remove('hidden');
+            } else if (viewId === 'marketplace') {
+                document.getElementById('view-marketplace').classList.remove('hidden');
+                if (marketTab) switchMarketplaceTab(marketTab);
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function switchMarketplaceTab(tabId) {
+            currentMarketTab = tabId;
+            document.getElementById('market-sec-direct').classList.add('hidden');
+            document.getElementById('market-sec-auctions').classList.add('hidden');
+            document.getElementById('market-sec-farmpool').classList.add('hidden');
+
+            document.querySelectorAll('.tab-market-btn').forEach(btn => {
+                btn.classList.remove('bg-white', 'dark:bg-slate-700', 'shadow-sm', 'text-slate-900', 'dark:text-white');
+            });
+
+            if (tabId === 'direct') {
+                document.getElementById('market-sec-direct').classList.remove('hidden');
+                document.getElementById('tab-btn-direct').classList.add('bg-white', 'dark:bg-slate-700', 'shadow-sm', 'text-slate-900', 'dark:text-white');
+            } else if (tabId === 'auctions') {
+                document.getElementById('market-sec-auctions').classList.remove('hidden');
+                document.getElementById('tab-btn-auctions').classList.add('bg-white', 'dark:bg-slate-700', 'shadow-sm', 'text-slate-900', 'dark:text-white');
+            } else if (tabId === 'farmpool') {
+                document.getElementById('market-sec-farmpool').classList.remove('hidden');
+                document.getElementById('tab-btn-farmpool').classList.add('bg-white', 'dark:bg-slate-700', 'shadow-sm', 'text-slate-900', 'dark:text-white');
+            }
+        }
+
+        function renderDirectCrops() {
+            const grid = document.getElementById('direct-crops-grid');
+            const query = (document.getElementById('market-search')?.value || '').toLowerCase();
+            const allCrops = [...mandiDataset2026, ...customHarvests];
+            const filtered = allCrops.filter(c => c.name.toLowerCase().includes(query) || c.location.toLowerCase().includes(query) || c.crop.toLowerCase().includes(query));
+
+            grid.innerHTML = filtered.map(item => `
+                <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden hover:shadow-md transition-all">
+                    <div class="h-44 bg-slate-100 dark:bg-slate-800 relative">
+                        <img src="${item.image}" alt="${item.name}" class="w-full h-full object-cover">
+                        <span class="absolute top-3 left-3 bg-emerald-600 text-white text-[10px] font-bold px-2 py-1 rounded-md shadow">${item.badge || 'Verified Harvest'}</span>
+                    </div>
+                    <div class="p-5 space-y-3">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h3 class="font-bold text-slate-900 dark:text-white text-base">${item.name}</h3>
+                                <p class="text-xs text-slate-500 dark:text-slate-400"><i class="fa-solid fa-location-dot text-red-500"></i> ${item.location}</p>
+                            </div>
+                            <span class="text-lg font-extrabold text-emerald-700 dark:text-emerald-400">₹${item.price} <span class="text-xs text-slate-500 font-normal">/ kg</span></span>
+                        </div>
+                        <div class="text-xs text-slate-600 dark:text-slate-300 space-y-1 bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                            <div class="flex justify-between"><span>Available Quantity:</span> <span class="font-bold text-slate-800 dark:text-white">${item.quantity.toLocaleString()} kg</span></div>
+                            <div class="flex justify-between"><span>Seller / Producer:</span> <span class="font-bold text-slate-800 dark:text-white">${item.seller}</span></div>
+                            <div class="flex justify-between"><span>Harvest Date:</span> <span class="font-semibold text-slate-700 dark:text-slate-300">${item.harvestDate || 'Fresh'}</span></div>
+                        </div>
+                        <div class="flex gap-2 pt-2">
+                            <button onclick="openCheckoutModal('${item.id}')" class="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow transition-all">
+                                Buy & Select Logistics Hub
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function openHarvestModal() { document.getElementById('modal-add-harvest').classList.remove('hidden'); }
+
+        function handleAddHarvestSubmit(e) {
+            e.preventDefault();
+            const cropName = document.getElementById('harvest-crop-name').value;
+            const newHarvest = {
+                id: 'L00' + (mandiDataset2026.length + customHarvests.length + 1),
+                name: cropName + " (Custom Harvest)",
+                crop: cropName.split(' ')[0],
+                variety: "Local Selection",
+                grade: "A",
+                quantity: parseInt(document.getElementById('harvest-quantity').value),
+                price: parseInt(document.getElementById('harvest-price').value),
+                location: document.getElementById('harvest-location').value,
+                seller: "Arun Kumar (You)",
+                harvestDate: "2026-09-22",
+                status: "Active",
+                image: cropImages[cropName.split(' ')[0]] || "https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?auto=format&fit=crop&w=600&q=80",
+                badge: "Direct Farmer Yield"
+            };
+
+            customHarvests.push(newHarvest);
+            localStorage.setItem('kisan_harvests', JSON.stringify(customHarvests));
+            closeModal('modal-add-harvest');
+            renderFarmerHarvests();
+            renderDirectCrops();
+            showToast('Harvest listing published directly to Marketplace!', 'success');
+        }
+
+        function renderFarmerHarvests() {
+            const container = document.getElementById('farmer-registered-harvests');
+            const userHarvests = mandiDataset2026.filter(c => c.farmerId === 'F001').concat(customHarvests);
+            
+            container.innerHTML = userHarvests.map(h => `
+                <div class="p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50 dark:bg-slate-800/50">
+                    <div>
+                        <span class="text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-300">Listing: ${h.id} • ${h.status || 'Active'}</span>
+                        <h4 class="font-bold text-slate-900 dark:text-white text-base mt-1">${h.name} - ${h.quantity.toLocaleString()} kg</h4>
+                        <p class="text-xs text-slate-500">Price: ₹${h.price}/kg • ${h.location} • Harvest: ${h.harvestDate || 'Available Now'}</p>
+                    </div>
+                    <button onclick="navigateTo('marketplace', 'auctions')" class="px-3 py-1.5 bg-emerald-600 text-white text-xs font-semibold rounded-lg hover:bg-emerald-700 shadow transition-all">
+                        View Live Bids
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function openCheckoutModal(cropId) {
+            const all = [...mandiDataset2026, ...customHarvests];
+            selectedCropForCheckout = all.find(c => String(c.id) === String(cropId)) || all[0];
+            
+            document.getElementById('checkout-crop-summary').innerHTML = `
+                <div class="font-bold text-slate-900 dark:text-white text-sm">${selectedCropForCheckout.name}</div>
+                <div class="text-emerald-700 dark:text-emerald-400 font-semibold mt-0.5">Rate: ₹${selectedCropForCheckout.price} / kg • Available: ${selectedCropForCheckout.quantity.toLocaleString()} kg • Seller: ${selectedCropForCheckout.seller}</div>
+                <div class="text-slate-500 dark:text-slate-400 text-[11px] mt-1"><i class="fa-solid fa-truck-ramp-box"></i> Direct Farm Pickup Point: ${selectedCropForCheckout.location}</div>
+            `;
+            
+            document.getElementById('modal-checkout').classList.remove('hidden');
+            setTimeout(initPickerMap, 200);
+        }
+
+        function initPickerMap() {
+            if (!pickerMap) {
+                pickerMap = L.map('map').setView([12.9165, 79.1325], 11);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(pickerMap);
+                pickerMap.on('click', function(e) { setAddressMarker(e.latlng.lat, e.latlng.lng); });
+            }
+        }
+
+        function setAddressMarker(lat, lng) {
+            if (pickerMarker) pickerMap.removeLayer(pickerMarker);
+            pickerMarker = L.marker([lat, lng]).addTo(pickerMap);
+            document.getElementById('checkout-address').value = `Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)} (Verified Hub Pincode 632014, Vellore)`;
+        }
+
+        function detectGPSLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    pickerMap.setView([lat, lng], 13);
+                    setAddressMarker(lat, lng);
+                    showToast("GPS Location auto-detected!", "success");
+                }, () => {
+                    setAddressMarker(12.9165, 79.1325);
+                    showToast("Location service fallback used (Vellore Agri Hub).", "info");
+                });
+            } else {
+                setAddressMarker(12.9165, 79.1325);
+            }
+        }
+
+        function handleCheckoutSubmit(e) {
+            e.preventDefault();
+            const address = document.getElementById('checkout-address').value;
+            closeModal('modal-checkout');
+            showToast("Order placed & locked in Escrow! Transporter assigned.", "success");
+            openTrackingModal(address);
+        }
+
+        function openTrackingModal(address) {
+            document.getElementById('tracking-dest-text').innerText = address || "Chennai Distribution Centre";
+            document.getElementById('modal-tracking').classList.remove('hidden');
+            const matched = logisticsDirectory[0];
+
+            setTimeout(() => {
+                if (!trackingMap) {
+                    trackingMap = L.map('tracking-map').setView([12.9165, 79.1325], 9);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(trackingMap);
+                }
+                if (trackingMarker) trackingMap.removeLayer(trackingMarker);
+                if (routePolyline) trackingMap.removeLayer(routePolyline);
+
+                const vellore = [12.9165, 79.1325];
+                const chennai = [13.0827, 80.2707];
+
+                routePolyline = L.polyline([vellore, chennai], { color: '#f59e0b', weight: 4, dashArray: '6, 8' }).addTo(trackingMap);
+                trackingMarker = L.marker(vellore).addTo(trackingMap).bindPopup(`<b>${matched.transporter}</b><br>${matched.vehicle} • Dispatching 1,500 kg`).openPopup();
+                trackingMap.fitBounds([vellore, chennai], { padding: [30, 30] });
+            }, 200);
+        }
+
+        function renderAuctions() {
+            const container = document.getElementById('auctions-grid');
+            container.innerHTML = liveAuctions.map(a => `
+                <div class="bg-white dark:bg-slate-900 rounded-2xl border-2 border-amber-400 shadow-md p-6 relative">
+                    <div class="flex justify-between items-start border-b border-slate-100 dark:border-slate-800 pb-4 mb-4">
+                        <div>
+                            <span class="inline-block bg-red-100 text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-full mb-1">
+                                <i class="fa-solid fa-circle text-[8px] animate-pulse"></i> LIVE BIDDING
+                            </span>
+                            <h3 class="font-extrabold text-slate-900 dark:text-white text-lg">${a.title}</h3>
+                            <p class="text-xs text-slate-500"><i class="fa-solid fa-location-dot text-red-500"></i> ${a.location} • ${a.quantity}</p>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-xs text-slate-400 block">Offer Window</span>
+                            <span class="font-mono text-sm font-bold text-amber-600">Active</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4 mb-6 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl text-center">
+                        <div>
+                            <span class="text-xs text-slate-500 block">Farmer Base Reserve</span>
+                            <span class="text-sm font-semibold text-slate-700 dark:text-slate-300">₹ ${a.starting} / kg</span>
+                        </div>
+                        <div>
+                            <span class="text-xs text-slate-500 block">Current Highest Bid</span>
+                            <span id="auction-highbid-${a.id}" class="text-xl font-black text-emerald-700 dark:text-emerald-400">₹ ${a.currentBid} / kg</span>
+                        </div>
+                    </div>
+
+                    <div class="mb-6 space-y-2">
+                        <span class="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">Buyer Offers Received:</span>
+                        <div id="bid-history-${a.id}" class="text-xs space-y-1.5 max-h-28 overflow-y-auto custom-scrollbar">
+                            ${a.history.map(h => `
+                                <div class="flex justify-between items-center bg-emerald-50 dark:bg-emerald-950/40 px-3 py-1.5 rounded-lg text-emerald-900 dark:text-emerald-300 font-medium">
+                                    <span class="truncate"><i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i> ${h.bidder}</span>
+                                    <span class="font-bold whitespace-nowrap ml-2">₹ ${h.bid} / kg</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="flex gap-3">
+                        <input id="bid-input-${a.id}" type="number" value="${a.currentBid + 1}" step="1" class="w-1/2 px-3 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white rounded-xl text-sm font-bold">
+                        <button onclick="placeBid('${a.id}')" class="w-1/2 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-900 font-extrabold rounded-xl text-xs shadow-md hover:from-amber-400 hover:to-amber-500 transition-all">
+                            <i class="fa-solid fa-gavel"></i> Place Higher Bid
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function placeBid(auctionId) {
+            const auction = liveAuctions.find(a => a.id === auctionId);
+            const input = document.getElementById(`bid-input-${auctionId}`);
+            const val = parseInt(input.value);
+
+            if (val <= auction.currentBid) {
+                showToast("Your bid must be higher than current top offer!", "info");
+                return;
+            }
+
+            auction.currentBid = val;
+            auction.history.unshift({ bidder: "Arun Kumar (Farmer Counter-Offer)", bid: val });
+            renderAuctions();
+            showToast(`Offer of ₹${val}/kg registered successfully!`, "success");
+        }
+
+        function renderFarmPools() {
+            const container = document.getElementById('farmpools-grid');
+            container.innerHTML = farmPools.map(p => `
+                <div class="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm">
+                    <div class="flex justify-between items-start mb-4">
+                        <div>
+                            <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-bold rounded">${p.crop}</span>
+                            <h3 class="font-bold text-slate-900 dark:text-white text-lg mt-1">${p.title}</h3>
+                        </div>
+                        <span class="px-2 py-1 bg-emerald-100 text-emerald-800 text-xs font-bold rounded-lg">${p.status}</span>
+                    </div>
+
+                    <div class="space-y-1.5 mb-5">
+                        <div class="flex justify-between text-xs font-semibold">
+                            <span class="text-slate-600 dark:text-slate-400">Target Aggregation:</span>
+                            <span class="text-blue-700 dark:text-blue-400 font-bold">${p.current.toLocaleString()} / ${p.target.toLocaleString()} kg</span>
+                        </div>
+                        <div class="w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                            <div class="h-full bg-blue-600 rounded-full" style="width: ${Math.min(100, (p.current/p.target)*100)}%;"></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl text-xs space-y-1.5 mb-5">
+                        <div class="flex justify-between"><span>Participating Smallholders:</span> <span class="font-bold text-slate-800 dark:text-white">${p.farmers} Farmers</span></div>
+                        <div class="flex justify-between"><span>Freight Advantage:</span> <span class="font-bold text-emerald-600">${p.savings}</span></div>
+                    </div>
+
+                    <button onclick="joinFarmPool('${p.title}')" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl transition-all">
+                        Contribute Quantity to Pool
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        function openCreatePoolModal() { document.getElementById('modal-farmpool').classList.remove('hidden'); }
+        function handleCreatePoolSubmit(e) {
+            e.preventDefault();
+            const newPool = {
+                id: 'P00' + (farmPools.length + 1),
+                title: document.getElementById('pool-name').value,
+                crop: document.getElementById('pool-crop').value,
+                current: 250,
+                target: parseInt(document.getElementById('pool-target').value) * 1000,
+                farmers: 1,
+                savings: "30% Group Logistics & Corporate Buyer Access",
+                status: "Pooling Active"
+            };
+            farmPools.push(newPool);
+            closeModal('modal-farmpool');
+            renderFarmPools();
+            showToast("New FarmPool group launched into Marketplace!", "success");
+        }
+
+        function joinFarmPool(poolTitle) {
+            showToast(`Produce aggregated into ${poolTitle}! Logistics quota refreshed.`, "success");
+        }
+
+        function openKissanAIModal() { document.getElementById('modal-kissan-ai').classList.remove('hidden'); }
+
+        function handleAISubmit(e) {
+            e.preventDefault();
+            const input = document.getElementById('ai-input');
+            const msg = input.value.trim();
+            if (!msg) return;
+
+            const chat = document.getElementById('ai-chat-messages');
+            chat.innerHTML += `<div class="bg-emerald-900/60 p-3 rounded-xl border border-emerald-700/50 text-white text-right font-medium">${msg}</div>`;
+            input.value = '';
+
+            const lower = msg.toLowerCase();
+            let reply = "🤖 <b>Kissan AI:</b> Based on current data across Tamil Nadu mandis, Grade A Tomatoes are trading between ₹24 and ₹27/kg, while Red Onions are at ₹29-₹32/kg. You can achieve up to 35% freight savings by pooling with Sri Balaji Transport (Vellore to Chennai).";
+
+            if (lower.includes('highest') || lower.includes('best offer') || lower.includes('buyer')) {
+                reply = "🤖 <b>Kissan AI:</b> For your Hybrid Tomatoes (L001), <b>GreenLeaf Restaurants</b> offered the highest at <b>₹28/kg</b> for 500 kg, and <b>South India Foods</b> offered <b>₹27/kg</b> for 1,500 kg. Total valuation for 1,500 kg is ₹40,500.";
+            } else if (lower.includes('earnings') || lower.includes('calculate') || lower.includes('value') || lower.includes('1500') || lower.includes('27')) {
+                reply = "🤖 <b>Kissan AI Valuation:</b> 1,500 kg Tomatoes × ₹27/kg = <b>₹40,500 Gross Value</b>.<br>Transport to Chennai with Sri Balaji Transport (₹42/km × 150 km) = ₹6,300.<br><b>Estimated Net Farmer Payout: ₹34,200</b>.";
+            } else if (lower.includes('transport') || lower.includes('logistics') || lower.includes('truck')) {
+                reply = "🤖 <b>Kissan AI Logistics Advisor:</b> 4 verified transporters are in your area:<br>• <b>Sri Balaji Transport</b> (Truck, 5,000 kg capacity, ₹42/km)<br>• <b>Ravi Logistics</b> (Mini Truck, 2,000 kg capacity, ₹35/km)<br>• <b>Green Route Movers</b> (Pickup, ₹28/km).";
+            }
+
+            setTimeout(() => {
+                chat.innerHTML += `<div class="bg-slate-800 p-3 rounded-xl border border-slate-700 text-slate-200">${reply}</div>`;
+                chat.scrollTop = chat.scrollHeight;
+            }, 500);
+        }
+
+        function translatePage(lang) {
+            const translations = {
+                hi: "पृष्ठ भाषा को हिन्दी में बदला गया।",
+                bn: "পৃষ্ঠার ভাষা বাংলায় পরিবর্তন করা হয়েছে।",
+                pa: "ਸਫ਼ੇ ਦੀ ਭਾਸ਼ਾ ਪੰਜਾਬੀ ਵਿੱਚ ਬਦਲੀ ਗਈ।",
+                mr: "पृष्ठ भाषा मराठीत बदलली.",
+                gu: "પૃષ્ઠ ભાષા ગુજરાતીમાં બદલાઈ.",
+                ta: "பக்க மொழி தமிழாக மாற்றப்பட்டது (வணக்கம்!).",
+                te: "పేజీ భాష తెలుగులోకి మార్చబడింది.",
+                kn: "ಪುಟದ ಭಾಷೆಯನ್ನು ಕನ್ನಡಕ್ಕೆ ಬದಲಾಯಿಸಲಾಗಿದೆ.",
+                ml: "പേജ് ഭാഷ മലയാളത്തിലേക്ക് മാറ്റി.",
+                en: "Language set to English."
+            };
+            showToast(translations[lang] || `Translated page view to selected language (${lang.toUpperCase()})`, "info");
+        }
+
+        function toggleDarkMode() {
+            document.documentElement.classList.toggle('dark');
+            const icon = document.getElementById('theme-icon');
+            if (document.documentElement.classList.contains('dark')) {
+                icon.className = 'fa-solid fa-sun text-lg text-amber-400';
+            } else {
+                icon.className = 'fa-solid fa-moon text-lg';
+            }
+        }
+
+        function initMandiChart() {
+            const ctx = document.getElementById('mandiChart').getContext('2d');
+            mandiChartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['14 Sep 2026', '15 Sep 2026', '16 Sep 2026', '17 Sep 2026 (Today)'],
+                    datasets: [
+                        {
+                            label: 'Vellore Hybrid Tomato Modal Price (₹/kg)',
+                            data: [24, 25, 26, 27],
+                            borderColor: '#16a34a',
+                            backgroundColor: 'rgba(22, 163, 74, 0.1)',
+                            fill: true,
+                            tension: 0.3
+                        },
+                        {
+                            label: 'Krishnagiri Red Onion Modal Price (₹/kg)',
+                            data: [29, 30, 31, 32],
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'transparent',
+                            borderDash: [5, 5],
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ₹' + context.raw + ' / kg';
+                                }
+                            }
+                        }
+                    },
+                    scales: { 
+                        y: { ticks: { callback: value => '₹' + value + '/kg' } } 
+                    }
+                }
+            });
+        }
+
+        function openLoginModal() { document.getElementById('modal-login').classList.remove('hidden'); }
+        function closeLoginModal() { document.getElementById('modal-login').classList.add('hidden'); }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+        function handleFarmerLogin(e) {
+            e.preventDefault();
+            closeLoginModal();
+            showToast('Farmer Arun Kumar Logged In! Location: Vellore (Katpadi)', 'success');
+            navigateTo('farmer-dashboard');
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            let bgClass = 'bg-slate-800 text-white';
+            if (type === 'success') bgClass = 'bg-emerald-700 text-white shadow-emerald-900/30';
+            if (type === 'info') bgClass = 'bg-blue-700 text-white shadow-blue-900/30';
+
+            toast.className = `${bgClass} pointer-events-auto px-4 py-3 rounded-xl shadow-lg border border-white/10 text-xs font-semibold flex items-center gap-2 transform transition-all duration-300 translate-y-2 opacity-0`;
+            toast.innerHTML = `<i class="fa-solid fa-circle-info"></i> <span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => toast.classList.remove('translate-y-2', 'opacity-0'), 10);
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+    </script>
+</body>
+</html>
